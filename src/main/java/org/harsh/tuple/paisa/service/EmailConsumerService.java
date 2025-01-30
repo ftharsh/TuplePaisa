@@ -15,14 +15,15 @@ public class EmailConsumerService {
     private final ObjectMapper objectMapper;
 
 
-    @KafkaListener(topics = "email-notifications" , groupId = "email-service")
-    public void listenEmailNotifications(String message)  {
+    @KafkaListener(topics = "email-notifications", groupId = "email-service")
+    public void listenEmailNotifications(String message) {
 
         try {
-                EmailDetails email = objectMapper.readValue(message, EmailDetails.class);
-                log.info("Message received:", email);
-                emailService.sendEmail(email.getEmail(), email.getSubject(), email.getBody());
+            EmailDetails email = objectMapper.readValue(message, EmailDetails.class);
+            log.info("Message received: {}", email);
+            emailService.sendEmail(email.getEmail(), email.getSubject(), email.getBody());
         } catch (Exception e) {
             log.error("Error while consuming email message: ", e);
         }
-}}
+    }
+}

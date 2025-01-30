@@ -14,22 +14,23 @@ import java.util.Map;
 @Slf4j
 @RequiredArgsConstructor
 public class HistoryConsumerService {
-    private final ObjectMapper objectMapper ;
-    private final WalletService walletService ;
+    private final ObjectMapper objectMapper;
+    private final WalletService walletService;
 
-    @KafkaListener(topics = "wallet-history" , groupId = "wallet-history")
+    @KafkaListener(topics = "wallet-history", groupId = "wallet-history")
     public void consumeHistory(String message) {
-        try{
+        try {
             log.info("Received history message:{}", message);
-            List<Map<String, Object>> transactions = objectMapper.readValue(message, new TypeReference<List<Map<String, Object>>>() {});
+            List<Map<String, Object>> transactions = objectMapper.readValue(message, new TypeReference<List<Map<String, Object>>>() {
+            });
             log.debug("Payload structure: {}", transactions);
             if (!transactions.isEmpty()) {
                 String userId = (String) transactions.getFirst().get("userId");
                 walletService.addHistory(userId, transactions);
             }
 
-        }catch (Exception e){
-            log.error("Error while consuming History message:",e);
+        } catch (Exception e) {
+            log.error("Error while consuming History message:", e);
         }
     }
 

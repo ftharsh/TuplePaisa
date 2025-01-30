@@ -115,7 +115,7 @@ class UserServiceTest {
 
     @Test
     void testFindUserByUsername() {
-        // Arrange
+        //! Arrange
         User user = User.builder()
                 .id("user123")
                 .username("testuser")
@@ -123,7 +123,7 @@ class UserServiceTest {
 
         when(userRepository.findByUsername(user.getUsername())).thenReturn(Optional.of(user));
 
-        // Act
+        // *Act
         Optional<User> foundUser = userService.findUserByUsername(user.getUsername());
 
         // Assert

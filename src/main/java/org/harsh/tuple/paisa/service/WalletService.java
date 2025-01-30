@@ -36,7 +36,7 @@ public class WalletService {
     private final WalletRepository walletRepository;
     private final TransactionRepository transactionRepository;
     private final CashbackService cashbackService;
-//    private final EmailService emailService;
+    //    private final EmailService emailService;
     private final UserRepository userRepository;
     private final CashbackRepository cashbackRepository;
     private final ObjectMapper objectMapper;
@@ -80,7 +80,6 @@ public class WalletService {
     }
 
 
-
     @Transactional
     public List<Transaction> transferWallet(String senderId, String recipientId, double amount) {
         if (amount <= 0) {
@@ -103,7 +102,6 @@ public class WalletService {
         // Save wallets with version control
         walletRepository.save(senderWallet);
         walletRepository.save(recipientWallet);
-
 
 
         //? Recording trnsaction for both sndr and receiver
@@ -130,7 +128,7 @@ public class WalletService {
         transactionRepository.save(senderTransaction);
         transactionRepository.save(recipientTransaction);
 
-        sendEmail(recipientId , amount);
+        sendEmail(recipientId, amount);
         return List.of(senderTransaction, recipientTransaction);
     }
 
@@ -148,9 +146,8 @@ public class WalletService {
         Page<Transaction> transactions = transactionRepository.findByUserId(userId, pageable);
         List<Transaction> transactionList = transactions.getContent();
 
-        Page<Cashback> cashbacks = cashbackRepository.findByUserId(userId , pageable);
+        Page<Cashback> cashbacks = cashbackRepository.findByUserId(userId, pageable);
         List<Cashback> cashbackList = cashbacks.getContent();
-
 
 
         combinedList.addAll(transactionList);
@@ -193,15 +190,16 @@ public class WalletService {
             String message = objectMapper.writeValueAsString(combinedList);
             kafkaTemplate.send("wallet-history", message);
             userHistoryMap.put(userId, combinedList);
-        }catch(Exception e) {
+        } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
     }
-    public void addHistory(String userId , List<Map<String,Object>> history) {
+
+    public void addHistory(String userId, List<Map<String, Object>> history) {
         log.info("adding history");
 
-            userHistoryMap.computeIfAbsent(userId, _ -> new ArrayList<>()).addAll(history);
+        userHistoryMap.computeIfAbsent(userId, _ -> new ArrayList<>()).addAll(history);
 
         log.info("history added calling get history");
         getHistory(userId);

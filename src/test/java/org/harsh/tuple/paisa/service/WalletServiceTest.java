@@ -1,5 +1,6 @@
 package org.harsh.tuple.paisa.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.harsh.tuple.paisa.model.*;
 import org.harsh.tuple.paisa.repository.CashbackRepository;
@@ -14,11 +15,13 @@ import org.harsh.tuple.paisa.exception.WalletNotFoundException;
 import org.harsh.tuple.paisa.repository.TransactionRepository;
 import org.harsh.tuple.paisa.repository.UserRepository;
 import org.harsh.tuple.paisa.repository.WalletRepository;
+import org.springframework.data.domain.*;
 import org.springframework.kafka.core.KafkaTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -56,6 +59,8 @@ public class WalletServiceTest {
     private static Wallet senderWallet;
     private static Wallet recipientWallet;
     private static User recipientUser;
+    private final int page = 0;
+    private final int size = 10;
 
     @BeforeAll
     static void setUpAll() {
@@ -177,7 +182,120 @@ public class WalletServiceTest {
         assertEquals(600.0, recipientWallet.getBalance()); // 500 + 100
     }
 
+    @Test
+    void getCombinedHistory_ShouldReturnSortedCombinedList() {
+        // Mock data
+         String userId = "user123";
+        LocalDateTime now = LocalDateTime.now();
+        Transaction transaction = Transaction.builder()
+                .timestamp(now.minusHours(1))
+                .build();
+        Cashback cashback = Cashback.builder()
+                .timestamp(now)
+                .build();
 
+        Page<Transaction> transactionPage = new PageImpl<>(List.of(transaction));
+        Page<Cashback> cashbackPage = new PageImpl<>(List.of(cashback));
+
+        // Mock repository calls
+        when(transactionRepository.findByUserId(eq(userId), any(Pageable.class)))
+                .thenReturn(transactionPage);
+        when(cashbackRepository.findByUserId(eq(userId), any(Pageable.class)))
+                .thenReturn(cashbackPage);
+
+        // Test
+        List<Object> result = walletService.getCombinedHistory(userId, page, size);
+
+        // Assertions
+        assertEquals(2, result.size());
+        assertTrue(result.get(0) instanceof Cashback);
+        assertTrue(result.get(1) instanceof Transaction);
+
+        // Verify pagination
+        Pageable expectedPageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
+        verify(transactionRepository).findByUserId(userId, expectedPageable);
+        verify(cashbackRepository).findByUserId(userId, expectedPageable);
+    }
+    @Test
+    @DisplayName("Should throw InvalidTransactionAmountException when recharge amount is zero")
+    void rechargeWallet_ZeroAmount_ThrowsInvalidTransactionAmountException() {
+        String userId = "user-id";
+        double amount = 0;
+        assertThrows(InvalidTransactionAmountException.class,
+                () -> walletService.rechargeWallet(userId, amount));
+    }
+
+    @Test
+    @DisplayName("Should throw InvalidTransactionAmountException when recharge amount is negative")
+    void rechargeWallet_NegativeAmount_ThrowsInvalidTransactionAmountException() {
+        String userId = "user-id";
+        double amount = -100;
+        assertThrows(InvalidTransactionAmountException.class,
+                () -> walletService.rechargeWallet(userId, amount));
+    }
+
+    @Test
+    @DisplayName("Should throw WalletNotFoundException when wallet doesn't exist during recharge")
+    void rechargeWallet_WalletNotFound_ThrowsWalletNotFoundException() {
+        String userId = "user-id";
+        double amount = 100;
+        when(walletRepository.findByUserId(userId)).thenReturn(Optional.empty());
+        assertThrows(WalletNotFoundException.class,
+                () -> walletService.rechargeWallet(userId, amount));
+    }
+
+    @Test
+    @DisplayName("Should throw InvalidTransactionAmountException when transfer amount is zero")
+    void transferWallet_ZeroAmount_ThrowsInvalidTransactionAmountException() {
+        String userId = "user-id123";
+        String recipientId = "user-id256";
+        double amount = 0;
+        assertThrows(InvalidTransactionAmountException.class,
+                () -> walletService.transferWallet(userId, recipientId, amount));
+    }
+
+    @Test
+    @DisplayName("Should throw WalletNotFoundException when sender wallet doesn't exist")
+    void transferWallet_SenderWalletNotFound_ThrowsWalletNotFoundException() {
+        String userId = "user-id123";
+        String recipientId = "user-id256";
+        double amount = 100;
+        when(walletRepository.findByUserId(userId)).thenReturn(Optional.empty());
+        assertThrows(WalletNotFoundException.class,
+                () -> walletService.transferWallet(userId, recipientId, amount));
+    }
+
+    @Test
+    @DisplayName("Should throw WalletNotFoundException when recipient wallet doesn't exist")
+    void transferWallet_RecipientWalletNotFound_ThrowsWalletNotFoundException() {
+        String userId = "user-id123";
+        String recipientId = "user-id256";
+        double amount = 100;
+        senderWallet.setBalance(200);
+        when(walletRepository.findByUserId(senderWallet.getUserId())).thenReturn(Optional.of(senderWallet));
+        when(walletRepository.findByUserId(recipientWallet.getUserId())).thenReturn(Optional.empty());
+        assertThrows(WalletNotFoundException.class,
+                () -> walletService.transferWallet(senderWallet.getUserId(), recipientWallet.getUserId(), amount));
+    }
+
+    @Test
+    @DisplayName("Should throw InsufficientBalanceException when sender has insufficient funds")
+    void transferWallet_InsufficientBalance_ThrowsInsufficientBalanceException() {
+        double amount = 100;
+        senderWallet.setBalance(50);
+        when(walletRepository.findByUserId(senderWallet.getUserId())).thenReturn(Optional.of(senderWallet));
+        when(walletRepository.findByUserId(recipientWallet.getUserId())).thenReturn(Optional.of(recipientWallet));
+        assertThrows(InsufficientBalanceException.class,
+                () -> walletService.transferWallet(senderWallet.getUserId(), recipientWallet.getUserId(), amount));
+    }
+
+    @Test
+    @DisplayName("Should throw WalletNotFoundException when getting balance for non-existent wallet")
+    void getBalance_WalletNotFound_ThrowsWalletNotFoundException() {
+        when(walletRepository.findByUserId(senderWallet.getUserId())).thenReturn(Optional.empty());
+        assertThrows(WalletNotFoundException.class,
+                () -> walletService.getBalance(senderWallet.getUserId()));
+    }
 
 
     @Test
@@ -190,6 +308,52 @@ public class WalletServiceTest {
         // Act & Assert
         assertThrows(InvalidTransactionAmountException.class,
                 () -> walletService.transferWallet(senderId, recipientId, amount));
+    }
+
+    @Test
+    void getCombinedHistory_EmptyResults_ShouldReturnEmptyList() {
+        String userId = "user123";
+        when(transactionRepository.findByUserId(eq(userId), any()))
+                .thenReturn(Page.empty());
+        when(cashbackRepository.findByUserId(eq(userId), any()))
+                .thenReturn(Page.empty());
+
+        List<Object> result = walletService.getCombinedHistory(userId, page, size);
+
+        assertTrue(result.isEmpty());
+    }
+    @Test
+    void addHistory_ShouldStoreInUserHistoryMap() {
+        String userId = "user123";
+        List<Map<String, Object>> history = List.of(
+                Map.of("type", "transaction", "amount", 100),
+                Map.of("type", "cashback", "amount", 10)
+        );
+
+        walletService.addHistory(userId, history);
+
+        List<Object> storedHistory = walletService.getHistory(userId);
+        assertEquals(2, storedHistory.size());
+        assertTrue(storedHistory.containsAll(history));
+    }
+
+    @Test
+    void addHistory_MultipleCalls_ShouldAggregateData() {
+        String userId = "user123";
+        List<Map<String, Object>> firstBatch = List.of(Map.of("id", 1));
+        List<Map<String, Object>> secondBatch = List.of(Map.of("id", 2));
+
+        walletService.addHistory(userId, firstBatch);
+        walletService.addHistory(userId, secondBatch);
+
+        List<Object> result = walletService.getHistory(userId);
+        assertEquals(2, result.size());
+    }
+
+    @Test
+    void getHistory_NoData_ShouldReturnEmptyList() {
+        List<Object> result = walletService.getHistory("nonExistingUser");
+        assertTrue(result.isEmpty());
     }
 
     @Test

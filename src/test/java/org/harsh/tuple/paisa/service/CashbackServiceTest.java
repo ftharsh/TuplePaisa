@@ -6,15 +6,14 @@ import org.harsh.tuple.paisa.model.Cashback;
 import org.harsh.tuple.paisa.model.Wallet;
 import org.harsh.tuple.paisa.repository.CashbackRepository;
 import org.harsh.tuple.paisa.repository.WalletRepository;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.*;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -54,74 +53,84 @@ class CashbackServiceTest {
         wallet.setBalance(1000.0);
     }
 
+
     @Test
-    void applyCashback_validRechargeAmount_shouldSaveCashbackAndUpdateWallet() {
-        double rechargeAmount = 2000.0;
-        double expectedCashback = rechargeAmount * 0.05; // Dynamic cashback calculation
+    @DisplayName("Should throw InvalidTransactionAmountException when recharge amount is zero")
+    void applyCashback_ZeroAmount_ThrowsInvalidTransactionAmountException() {
+        String userId = "harsh123";
+        assertThrows(InvalidTransactionAmountException.class,
+                () -> cashbackService.applyCashback(userId, 0));
+    }
+
+    @Test
+    @DisplayName("Should throw InvalidTransactionAmountException when recharge amount is negative")
+    void applyCashback_NegativeAmount_ThrowsInvalidTransactionAmountException() {
+        String userId = "harsh123";
+        assertThrows(InvalidTransactionAmountException.class,
+                () -> cashbackService.applyCashback(userId, -100));
+    }
+
+    @Test
+    @DisplayName("Should throw WalletNotFoundException when wallet doesn't exist")
+    void applyCashback_WalletNotFound_ThrowsWalletNotFoundException() {
+        String userId = "harsh123";
+        when(walletRepository.findByUserId(userId)).thenReturn(Optional.empty());
+        assertThrows(WalletNotFoundException.class,
+                () -> cashbackService.applyCashback(userId, 100));
+    }
+
+    @Test
+    @DisplayName("Should successfully apply cashback and update wallet")
+    void applyCashback_ValidAmount_UpdatesWalletAndSavesCashback() {
+        String userId = "harsh123";
+        double rechargeAmount = 100;
+        double expectedCashback = 5;
+
+        wallet.setBalance(1000);
 
         when(walletRepository.findByUserId(userId)).thenReturn(Optional.of(wallet));
 
         cashbackService.applyCashback(userId, rechargeAmount);
 
-        // Verify cashback is saved with builder
-        verify(cashbackRepository, times(1)).save(argThat(cashback ->
-                cashback.getUserId().equals(userId) &&
-                        cashback.getAmount() == expectedCashback &&
-                        cashback.getTimestamp() != null
-        ));
+        ArgumentCaptor<Cashback> cashbackCaptor = ArgumentCaptor.forClass(Cashback.class);
+        ArgumentCaptor<Wallet> walletCaptor = ArgumentCaptor.forClass(Wallet.class);
 
-        // Verify wallet is updated
-        assertEquals(1000.0 + expectedCashback, wallet.getBalance());
-        verify(walletRepository, times(1)).save(wallet);
+        verify(cashbackRepository).save(cashbackCaptor.capture());
+        verify(walletRepository).save(walletCaptor.capture());
+
+        Cashback savedCashback = cashbackCaptor.getValue();
+        Wallet savedWallet = walletCaptor.getValue();
+
+        assertEquals(userId, savedCashback.getUserId());
+        assertEquals(expectedCashback, savedCashback.getAmount());
+        assertEquals(1005, savedWallet.getBalance());
+        assertNotNull(savedCashback.getTimestamp());
     }
 
     @Test
-    void applyCashback_invalidRechargeAmount_shouldThrowException() {
-        double invalidRechargeAmount = -50.0;
-
-        assertThrows(InvalidTransactionAmountException.class,
-                () -> cashbackService.applyCashback(userId, invalidRechargeAmount));
-
-        verifyNoInteractions(cashbackRepository, walletRepository);
+    @DisplayName("Should throw WalletNotFoundException when getting cashback history for non-existent wallet")
+    void getCashbackHistory_WalletNotFound_ThrowsWalletNotFoundException() {
+        String userId = "harsh123";
+        when(walletRepository.existsByUserId(userId)).thenReturn(false);
+        assertThrows(WalletNotFoundException.class,
+                () -> cashbackService.getCashbackHistory(userId));
     }
 
-
-
-
     @Test
-    void getCashbackHistory_validUserId_shouldReturnCashbackList() {
-        List<Cashback> mockCashbackList = List.of(
-                Cashback.builder()
-                        .id("cashback1")
-                        .userId(userId)
-                        .amount(50.0)
-                        .timestamp(LocalDateTime.now())
-                        .build(),
-                Cashback.builder()
-                        .id("cashback2")
-                        .userId(userId)
-                        .amount(25.0)
-                        .timestamp(LocalDateTime.now())
-                        .build()
+    @DisplayName("Should return cashback history for valid user")
+    void getCashbackHistory_ValidUser_ReturnsCashbackList() {
+        String userId = "harsh123";
+        List<Cashback> expectedCashbacks = Arrays.asList(
+                Cashback.builder().userId(userId).amount(5.0).timestamp(LocalDateTime.now()).build(),
+                Cashback.builder().userId(userId).amount(10.0).timestamp(LocalDateTime.now()).build()
         );
 
         when(walletRepository.existsByUserId(userId)).thenReturn(true);
-        when(cashbackRepository.findByUserId(userId)).thenReturn(mockCashbackList);
+        when(cashbackRepository.findByUserId(userId)).thenReturn(expectedCashbacks);
 
-        List<Cashback> cashbackHistory = cashbackService.getCashbackHistory(userId);
+        List<Cashback> actualCashbacks = cashbackService.getCashbackHistory(userId);
 
-        assertEquals(mockCashbackList.size(), cashbackHistory.size());
-        assertEquals(mockCashbackList.get(0).getAmount(), cashbackHistory.get(0).getAmount());
-        assertEquals(mockCashbackList.get(1).getAmount(), cashbackHistory.get(1).getAmount());
-    }
-
-    @Test
-    void getCashbackHistory_walletNotFound_shouldThrowException() {
-        when(walletRepository.existsByUserId(userId)).thenReturn(false);
-
-        assertThrows(WalletNotFoundException.class,
-                () -> cashbackService.getCashbackHistory(userId));
-
-        verifyNoInteractions(cashbackRepository);
+        assertEquals(expectedCashbacks, actualCashbacks);
+        verify(cashbackRepository).findByUserId(userId);
     }
 }

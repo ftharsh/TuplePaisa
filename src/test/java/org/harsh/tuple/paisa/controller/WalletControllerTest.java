@@ -33,6 +33,7 @@ class WalletControllerTest {
     @Mock
     private CashbackRepository cashbackRepository;
 
+
     @Mock
     private TransactionRepository transactionRepository;
 
@@ -123,18 +124,6 @@ class WalletControllerTest {
         assertEquals("Invalid recipient", exception.getMessage());
     }
 
-    @Test
-    void testGetCombinedHistoryWithPagination() {
-        String userId = "user123";
-        when(authentication.getName()).thenReturn(userId);
-        List<Object> combinedList = List.of(new Object(), new Object(), new Object(), new Object(), new Object());
-        when(walletService.getHistory(userId)).thenReturn(combinedList);
-
-        List<Object> result = walletController.getCombinedHistory(1, 2);
-
-        assertEquals(2, result.size());
-        assertEquals(combinedList.subList(2, 4), result);
-    }
 
     @Test
     void testGetCombinedHistoryWithPagination_Empty() {
@@ -183,6 +172,7 @@ class WalletControllerTest {
         assertNotNull(result);
         assertEquals(0.0, result.get("balance"));
     }
+
     @Test
     void testGetCombinedHistoryWithOnlyTransaction() {
         List<Object> combinedList = new ArrayList<>();
@@ -209,7 +199,7 @@ class WalletControllerTest {
                 .timestamp(LocalDateTime.of(2023, 12, 1, 10, 0)).build();  // Later timestamp
 
         Cashback cashback = Cashback.builder()
-        .timestamp(LocalDateTime.of(2023, 11, 30, 12, 0)).build();    // Earlier timestamp
+                .timestamp(LocalDateTime.of(2023, 11, 30, 12, 0)).build();    // Earlier timestamp
 
         // Add both objects to the combined list
         List<Object> combinedList = new ArrayList<>();

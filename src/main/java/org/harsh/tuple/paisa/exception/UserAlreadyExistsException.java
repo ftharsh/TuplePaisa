@@ -18,6 +18,5 @@ public class UserAlreadyExistsException extends RuntimeException {
         details.put(field, value);
         this.errorResponse = new ErrorResponse("User already exists", "ERR_USER_EXISTS", LocalDateTime.now(), details);
     }
-
 }
 
