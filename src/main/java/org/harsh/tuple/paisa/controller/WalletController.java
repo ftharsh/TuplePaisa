@@ -3,6 +3,7 @@ package org.harsh.tuple.paisa.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.harsh.tuple.paisa.model.Transaction;
+import org.harsh.tuple.paisa.repository.UserRepository;
 import org.harsh.tuple.paisa.service.WalletService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -19,6 +20,7 @@ public class WalletController {
 
 
     private final WalletService walletService;
+    private final UserRepository userRepository;
 
 
     // Wallet Recharge
@@ -32,9 +34,11 @@ public class WalletController {
     // Wallet Transfer
     @PostMapping("/transfer")
     public ResponseEntity<?> transferWallet(
-            @RequestParam String recipientId,
+            @RequestParam String recipientUsername,
             @RequestParam double amount) {
 
+        log.info("Received request to transfer wallet from {} to {}", recipientUsername, amount);
+        String recipientId = userRepository.findByUsername(recipientUsername).get().getId();
         //? Extracting senderId from JWT token
         String senderId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
@@ -50,12 +54,7 @@ public class WalletController {
         return walletService.getCombinedHistory(userId, page, size);
     }
 
-    @GetMapping("/chartsHistory")
-    public List<Object> getCombinedHistory() {
-        String userId = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-         walletService.getCombinedHistory(userId);
-         return walletService.getHistory(userId);
-    }
+
 
     @GetMapping("/balance")
     public Map<String, Double> getWalletBalance() {

@@ -1,5 +1,7 @@
 package org.harsh.tuple.paisa.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.harsh.tuple.paisa.exception.InvalidLoginException;
@@ -13,7 +15,8 @@ import org.harsh.tuple.paisa.util.JwtUtil;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 
 @RequiredArgsConstructor
@@ -44,7 +47,7 @@ public class UserService {
 
 
         user.setPassword(passwordEncoder.encode(user.getPassword()));
-        user.setActive(true);
+
 
 
         User registeredUser = userRepository.save(user);
@@ -98,6 +101,31 @@ public class UserService {
         userRepository.deleteById(id);
         walletRepository.deleteByUserId(user.getId());
         log.debug("User and associated wallet deleted successfully for id: {}", id);
+    }
+
+    public Map<String, Set<String>> getSuggestions(String query){
+        String regexQuery = ".*"+query+".*";
+        List<String> results = userRepository.findUsernamesByQuery(regexQuery);
+
+        ObjectMapper objectMapper = new ObjectMapper();
+        Set<String> usernames = new HashSet<>();
+
+        for (String result : results) {
+            try {
+                // Parse the JSON string to extract the username
+                JsonNode jsonNode = objectMapper.readTree(result);
+                String username = jsonNode.get("username").asText();
+                usernames.add(username);
+            } catch (Exception e) {
+                // Handle parsing errors
+                e.printStackTrace();
+            }
+        }
+
+        // Return the usernames as a JSON object
+        Map<String, Set<String>> response = new HashMap<>();
+        response.put("usernames", usernames);
+        return response;
     }
 }
 

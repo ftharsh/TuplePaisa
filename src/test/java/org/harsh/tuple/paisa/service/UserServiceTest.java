@@ -15,7 +15,7 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
-import java.util.Optional;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -157,5 +157,134 @@ class UserServiceTest {
 
         // Act & Assert
         assertThrows(UserNotFoundException.class, () -> userService.deleteUser(userId));
+    }
+
+    @Test
+    public void testLoginUser_SuccessfulLogin() {
+        // Arrange
+        String username = "testUser";
+        String password = "correctPassword";
+        User mockUser = User.builder()
+                .username(username)
+                .password(new BCryptPasswordEncoder().encode(password)).build();
+
+        when(userRepository.findByUsername(username)).thenReturn(Optional.of(mockUser));
+
+        // Act
+        String token = userService.loginUser(username, password);
+
+        // Assert
+        assertNull(token);
+        verify(userRepository, times(1)).findByUsername(username);
+    }
+
+    @Test
+    public void testLoginUser_InvalidPassword() {
+        // Arrange
+        String username = "testUser";
+        String correctPassword = "correctPassword";
+        String wrongPassword = "wrongPassword";
+        User mockUser = User.builder()
+        .username(username)
+                .password(new BCryptPasswordEncoder().encode(correctPassword)).build();
+
+        when(userRepository.findByUsername(username)).thenReturn(Optional.of(mockUser));
+
+        // Act & Assert
+        InvalidLoginException exception = assertThrows(InvalidLoginException.class, () -> {
+            userService.loginUser(username, wrongPassword);
+        });
+
+        // Verify the ErrorResponse details
+        assertNotNull(exception.getErrorResponse());
+        assertEquals("Invalid username or password", exception.getErrorResponse().getMessage());
+        assertEquals("ERR_INVALID_LOGIN", exception.getErrorResponse().getErrorCode());
+        assertNotNull(exception.getErrorResponse().getTimestamp());
+
+        Map<String, Object> details = exception.getErrorResponse().getDetails();
+        assertNotNull(details);
+        assertEquals(username, details.get("username"));
+
+        // Verify interactions
+        verify(userRepository, times(1)).findByUsername(username);
+    }
+    @Test
+    public void testDeleteUser_SuccessfulDeletion() {
+        // Arrange
+        String userId = "123";
+        User mockUser = User.builder()
+                .id(userId).build();
+
+        when(userRepository.findById(userId)).thenReturn(Optional.of(mockUser));
+
+        // Act
+        userService.deleteUser(userId);
+
+        // Assert
+        verify(userRepository, times(1)).deleteById(userId);
+        verify(walletRepository, times(1)).deleteByUserId(userId);
+    }
+
+    @Test
+    public void testGetSuggestions_ValidJson() throws Exception {
+        // Arrange
+        String query = "test";
+        List<String> mockResults = Arrays.asList(
+                "{\"username\":\"user1\"}",
+                "{\"username\":\"user2\"}"
+        );
+
+        when(userRepository.findUsernamesByQuery(".*" + query + ".*")).thenReturn(mockResults);
+
+        // Act
+        Map<String, Set<String>> response = userService.getSuggestions(query);
+
+        // Assert
+        assertNotNull(response);
+        assertTrue(response.containsKey("usernames"));
+        assertEquals(2, response.get("usernames").size());
+        assertTrue(response.get("usernames").contains("user1"));
+        assertTrue(response.get("usernames").contains("user2"));
+        verify(userRepository, times(1)).findUsernamesByQuery(".*" + query + ".*");
+    }
+
+    @Test
+    public void testGetSuggestions_InvalidJson() {
+        // Arrange
+        String query = "test";
+        List<String> mockResults = Arrays.asList(
+                "{\"username\":\"user1\"}",
+                "{invalidJson}"
+        );
+
+        when(userRepository.findUsernamesByQuery(".*" + query + ".*")).thenReturn(mockResults);
+
+        // Act
+        Map<String, Set<String>> response = userService.getSuggestions(query);
+
+        // Assert
+        assertNotNull(response);
+        assertTrue(response.containsKey("usernames"));
+        assertEquals(1, response.get("usernames").size());
+        assertTrue(response.get("usernames").contains("user1"));
+        verify(userRepository, times(1)).findUsernamesByQuery(".*" + query + ".*");
+    }
+
+    @Test
+    public void testGetSuggestions_NoResults() {
+        // Arrange
+        String query = "test";
+        List<String> mockResults = Collections.emptyList();
+
+        when(userRepository.findUsernamesByQuery(".*" + query + ".*")).thenReturn(mockResults);
+
+        // Act
+        Map<String, Set<String>> response = userService.getSuggestions(query);
+
+        // Assert
+        assertNotNull(response);
+        assertTrue(response.containsKey("usernames"));
+        assertTrue(response.get("usernames").isEmpty());
+        verify(userRepository, times(1)).findUsernamesByQuery(".*" + query + ".*");
     }
 }

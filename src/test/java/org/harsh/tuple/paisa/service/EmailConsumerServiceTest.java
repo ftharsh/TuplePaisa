@@ -1,7 +1,7 @@
 package org.harsh.tuple.paisa.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.harsh.tuple.paisa.model.EmailDetails;
+import org.harsh.tuple.paisa.dto.EmailDetails;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

@@ -2,14 +2,17 @@ package org.harsh.tuple.paisa.controller;
 
 import org.harsh.tuple.paisa.model.Cashback;
 import org.harsh.tuple.paisa.model.Transaction;
+import org.harsh.tuple.paisa.model.User;
 import org.harsh.tuple.paisa.repository.CashbackRepository;
 import org.harsh.tuple.paisa.repository.TransactionRepository;
+import org.harsh.tuple.paisa.repository.UserRepository;
 import org.harsh.tuple.paisa.service.WalletService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -17,10 +20,7 @@ import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -36,6 +36,9 @@ class WalletControllerTest {
 
     @Mock
     private TransactionRepository transactionRepository;
+
+    @Mock
+    private UserRepository userRepository;
 
     @Mock
     private SecurityContext securityContext;
@@ -92,36 +95,53 @@ class WalletControllerTest {
         verify(walletService, times(1)).rechargeWallet("harsh123", amount);
     }
 
-    // Test: Wallet Transfer - Successful
     @Test
     void testTransferWallet() {
-        String recipientId = "unknown123";  // Updated recipient ID
+        String recipientUsername = "unknown123";
+        String recipientId = "recipient123";
         double amount = 30.0;
+        String senderId = "harsh123";
+
+        User recipientUser = User.builder()
+                .id(recipientId).build();
+
+
+
         List<Transaction> transactions = List.of(transaction);
 
-        when(walletService.transferWallet("harsh123", recipientId, amount)).thenReturn(transactions);
+        when(userRepository.findByUsername(recipientUsername)).thenReturn(Optional.of(recipientUser));
+        when(walletService.transferWallet(senderId, recipientId, amount)).thenReturn(transactions);
 
-        ResponseEntity<?> response = walletController.transferWallet(recipientId, amount);
+        Authentication authentication = Mockito.mock(Authentication.class);
+        when(authentication.getPrincipal()).thenReturn(senderId);
+        SecurityContextHolder.getContext().setAuthentication(authentication);
+
+        ResponseEntity<?> response = walletController.transferWallet(recipientUsername, amount);
 
         assertNotNull(response);
         assertEquals(ResponseEntity.ok(transactions), response);
-        verify(walletService, times(1)).transferWallet("harsh123", recipientId, amount);
+
+        verify(userRepository, times(1)).findByUsername(recipientUsername);
+        verify(walletService, times(1)).transferWallet(senderId, recipientId, amount);
     }
 
-    // Test: Wallet Transfer - Invalid Recipient
+
     @Test
     void testTransferWalletWithInvalidRecipient() {
-        String recipientId = "invalid123";  // Invalid recipient ID
+        String recipientUsername = "invalid123";  // Invalid recipient ID
         double amount = 30.0;
 
-        when(walletService.transferWallet("harsh123", recipientId, amount))
+        when(userRepository.findByUsername(recipientUsername)).thenReturn(Optional.empty());
+
+        when(walletService.transferWallet("harsh123", recipientUsername, amount))
                 .thenThrow(new IllegalArgumentException("Invalid recipient"));
 
-        Exception exception = assertThrows(IllegalArgumentException.class, () -> {
-            walletController.transferWallet(recipientId, amount);
+        Exception exception = assertThrows(NoSuchElementException.class, () -> {
+            walletController.transferWallet(recipientUsername, amount);
         });
 
-        assertEquals("Invalid recipient", exception.getMessage());
+        assertEquals("No value present", exception.getMessage());
+        verify(userRepository, times(1)).findByUsername(recipientUsername);
     }
 
 
@@ -137,19 +157,7 @@ class WalletControllerTest {
         assertEquals(Collections.emptyList(), result);
     }
 
-    @Test
-    void testGetCombinedHistoryWithoutPagination() {
-        String userId = "user123";
-        when(authentication.getPrincipal()).thenReturn(userId);
-        List<Object> combinedList = List.of(new Object(), new Object(), new Object());
-        when(walletService.getHistory(userId)).thenReturn(combinedList);
 
-        List<Object> result = walletController.getCombinedHistory();
-
-        assertEquals(combinedList, result);
-    }
-
-    // Test: Get Wallet Balance - Valid Data
     @Test
     void testGetWalletBalance() {
         double balance = 200.0;

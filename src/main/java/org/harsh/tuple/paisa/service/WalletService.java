@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.harsh.tuple.paisa.dto.EmailDetails;
 import org.harsh.tuple.paisa.exception.InsufficientBalanceException;
 import org.harsh.tuple.paisa.exception.InvalidTransactionAmountException;
 import org.harsh.tuple.paisa.exception.WalletNotFoundException;
@@ -112,7 +113,7 @@ public class WalletService {
                 .type(TransactionType.TRANSFER)
                 .amount(amount)
                 .recipientId(recipientId)
-                .timestamp(now)
+                .timestamp(LocalDateTime.now())
                 .build();
 
         Transaction recipientTransaction = Transaction.builder()
@@ -122,7 +123,7 @@ public class WalletService {
                 .type(TransactionType.TRANSFER)
                 .amount(amount)
                 .recipientId(null)
-                .timestamp(now)
+                .timestamp(LocalDateTime.now())
                 .build();
 
         transactionRepository.save(senderTransaction);
@@ -145,13 +146,13 @@ public class WalletService {
         Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "timestamp"));
         Page<Transaction> transactions = transactionRepository.findByUserId(userId, pageable);
         List<Transaction> transactionList = transactions.getContent();
-
         Page<Cashback> cashbacks = cashbackRepository.findByUserId(userId, pageable);
         List<Cashback> cashbackList = cashbacks.getContent();
 
 
         combinedList.addAll(transactionList);
         combinedList.addAll(cashbackList);
+
 
         combinedList.sort((a, b) -> {
             LocalDateTime time1 = (a instanceof Transaction)
@@ -160,41 +161,26 @@ public class WalletService {
             LocalDateTime time2 = (b instanceof Transaction)
                     ? ((Transaction) b).getTimestamp()
                     : ((Cashback) b).getTimestamp();
-            return time2.compareTo(time1);
+
+
+            int timeComparison = time2.compareTo(time1);
+            if (timeComparison != 0) {
+                return timeComparison; // Use timestamp comparison if timestamps differ
+            }
+
+
+            if (a instanceof Cashback && b instanceof Transaction) {
+                return -1;
+            } else if (a instanceof Transaction && b instanceof Cashback) {
+                return 1;
+            }
+
+            return 0;
         });
 
         return combinedList;
     }
 
-
-    public void getCombinedHistory(String userId) {
-
-        List<Object> combinedList = new ArrayList<>();
-
-        List<Transaction> transactions = transactionRepository.findByUserId(userId);
-        List<Cashback> cashbacks = cashbackRepository.findByUserId(userId);
-
-        combinedList.addAll(transactions);
-        combinedList.addAll(cashbacks);
-
-        // Sort by timestamp
-        combinedList.sort((a, b) -> {
-            LocalDateTime time1 = (a instanceof Transaction) ?
-                    ((Transaction) a).getTimestamp() : ((Cashback) a).getTimestamp();
-            LocalDateTime time2 = (b instanceof Transaction) ?
-                    ((Transaction) b).getTimestamp() : ((Cashback) b).getTimestamp();
-            return time2.compareTo(time1);
-        });
-        try {
-            log.info("pushing combined list");
-            String message = objectMapper.writeValueAsString(combinedList);
-            kafkaTemplate.send("wallet-history", message);
-            userHistoryMap.put(userId, combinedList);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-    }
 
     public void addHistory(String userId, List<Map<String, Object>> history) {
         log.info("adding history");
@@ -211,15 +197,7 @@ public class WalletService {
     }
 
 
-//    public void sendEmail(String receiverId , double amount) {
-//        userRepository.findById(receiverId).ifPresent(user -> {
-//            String emailBody = String.format(
-//                    "Hello %s,\n\nYou have successfully received %.2f in your Account.\nThank you for using our service.\n -Tuple Paisa",
-//                    user.getUsername(), amount);
-//                emailService.sendEmail(user.getEmail(), emailBody , "Transaction Successful");
-//            });
-//      }
-// *   // avg time --> 28.5[64.7]
+
 
     //!with kafka
     public void sendEmail(String receiverId, double amount) {

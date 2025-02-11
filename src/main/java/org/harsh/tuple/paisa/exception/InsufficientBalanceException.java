@@ -4,7 +4,7 @@ package org.harsh.tuple.paisa.exception;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.RequiredArgsConstructor;
-import org.harsh.tuple.paisa.model.ErrorResponse;
+import org.harsh.tuple.paisa.dto.ErrorResponse;
 
 import java.time.LocalDateTime;
 import java.util.Map;

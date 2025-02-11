@@ -3,13 +3,17 @@ package org.harsh.tuple.paisa.controller;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.harsh.tuple.paisa.model.User;
+import org.harsh.tuple.paisa.repository.UserRepository;
 import org.harsh.tuple.paisa.service.UserService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/user")
@@ -18,6 +22,7 @@ import java.util.Map;
 public class UserController {
 
     private final UserService userService;
+    private final UserRepository userRepository;
 
     // !User Registration
     @PostMapping("/register")
@@ -55,6 +60,19 @@ public class UserController {
             userService.deleteUser(id);
             log.info("Successfully deleted user and wallet with id: {}", id);
             return ResponseEntity.noContent().build();
+
+    }
+    @GetMapping("/search")
+    public Map<String, Set<String>> searchUser(@RequestParam("query") String query){
+        Map<String, Set<String>> suggestions =  userService.getSuggestions(query);
+        String userId = SecurityContextHolder.getContext().getAuthentication().getName();
+        String userName = userRepository.findById(userId).get().getUsername();
+
+        suggestions.forEach((key, usernames) -> {
+            usernames.remove(userName);
+        });
+
+        return suggestions;
 
     }
 }

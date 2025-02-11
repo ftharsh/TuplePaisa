@@ -45,7 +45,8 @@ public class SecurityConfig {
                                 "api/wallet/statement",
                                 "api/cashback/history",
                                 "api/wallet/balance",
-                        "api/wallet/chartsHistory").authenticated()
+                                "api/charts/chartsHistory",
+                                "api/user/search").authenticated()
                 )
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

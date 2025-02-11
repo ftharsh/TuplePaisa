@@ -1,4 +1,4 @@
-package org.harsh.tuple.paisa.model;
+package org.harsh.tuple.paisa.dto;
 
 import lombok.*;
 

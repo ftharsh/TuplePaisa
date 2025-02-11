@@ -1,14 +1,13 @@
 package org.harsh.tuple.paisa.exception;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import org.harsh.tuple.paisa.model.ErrorResponse;
+import org.harsh.tuple.paisa.dto.ErrorResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 
 import java.time.LocalDateTime;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
